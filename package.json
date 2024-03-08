@@ -1,0 +1,21 @@
+{
+  "name": "rsps-server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "dependencies": {
+    "bigint-crypto-utils": "^3.3.0",
+    "chalk": "^5.3.0",
+    "isaac-prng": "^1.0.16",
+    "node-forge": "^1.3.1",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/uuid": "^9.0.8"
+  }
+}
