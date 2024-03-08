@@ -117,7 +117,7 @@ export class PacketBuilder {
         placeholderIndex + 1
       ).byteLength;
 
-      bufferToCopy[placeholderIndex] = length;
+      bufferToCopy[placeholderIndex] = -length;
     }
 
     const payload = Buffer.from([...prefixBuffer.buffer, ...bufferToCopy]);
