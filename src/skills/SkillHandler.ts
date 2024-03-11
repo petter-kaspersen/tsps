@@ -1,4 +1,4 @@
-import { OutgoingPacket } from "../net/packet/OutgoingPacket";
+import { PacketBuilder } from "../net/packet/PacketBuilder";
 import { Player } from "../player/Player";
 
 export class SkillHandler {
@@ -9,12 +9,12 @@ export class SkillHandler {
   }
 
   sendSkill(skill: number) {
-    new OutgoingPacket(this.player.connection, 134, 13)
+    new PacketBuilder(134)
       .writeByte(skill)
       .writeInt(99)
       .writeInt(99)
       .writeInt(15_000_000)
-      .send();
+      .send(this.player.connection);
   }
 
   sendSkills() {

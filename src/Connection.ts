@@ -10,13 +10,13 @@ import { Flags } from "./handlers/FlagHandler";
 import { GAME_UID } from "./constants/game";
 import { Logger } from "./util/logger";
 import { LOGIN_STATUS_RESPONSE_CODE } from "./constants/login";
-import { OutgoingPacket } from "./net/packet/OutgoingPacket";
 import { Player } from "./player/Player";
 import { PlayerSession } from "./net/PlayerSession";
 import { RSA_EXPONENT, RSA_MODULUS } from "./constants/network";
 import { SocketWithPlayerSession } from "./server";
 import { TAB_INTERFACES } from "./constants/interface";
 import { World } from "./World";
+import { PacketBuilder } from "./net/packet/PacketBuilder";
 
 const CONNECTION_TYPES = {
   LOGIN_REQUEST: 14,
@@ -210,11 +210,7 @@ export class Connection {
       return;
     }
 
-    // Write map location... Hardcoded for now.
-    new OutgoingPacket(this.connection, 73, 4)
-      .writeWordA(400)
-      .writeShort(400)
-      .send();
+    new PacketBuilder(73).writeWordA(400).writeShort(400).send(this.connection);
 
     // TODO: Move this, also, render magic tab.
     for (let i = 0; i < TAB_INTERFACES.length; i++) {
@@ -224,10 +220,10 @@ export class Connection {
 
       const tab = TAB_INTERFACES[i];
 
-      new OutgoingPacket(this.connection, 71, 3)
+      new PacketBuilder(71)
         .writeShort(tab)
         .writeByte(i + 128)
-        .send();
+        .send(this.connection);
     }
 
     const player = this.connection.player;
@@ -236,13 +232,9 @@ export class Connection {
     player.updateFlags.setFlag(Flags.FORCED_CHAT);
 
     player.messageFromServer("Welcome to RuneScape.");
-    player.setRunEnergy(100);
-
-    player.skillHandler.sendSkills();
 
     // Write song...
-    player.playSong(35);
-    player.sendRunStatus();
+    // player.playSong(35);
 
     this.connection.on("data", (data: Buffer) => {
       if (!this.connection.session) {

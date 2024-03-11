@@ -1,4 +1,5 @@
 export class FlagHandler {
+  // Maybe this should be a map?
   private flags = new Set();
 
   flagged(flag: Flags) {
@@ -20,5 +21,6 @@ export class FlagHandler {
 
 export enum Flags {
   APPEARANCE,
-  FORCED_CHAT
+  FORCED_CHAT,
+  ANIMATION,
 }

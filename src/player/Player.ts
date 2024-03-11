@@ -3,9 +3,12 @@ import { World } from "../World";
 import { DEFAULT_LOCATION } from "../constants/game";
 import { FlagHandler, Flags } from "../handlers/FlagHandler";
 import { Logger } from "../util/logger";
-import { Endian, OutgoingPacket } from "../net/packet/OutgoingPacket";
-import { AccessType, PacketBuilder } from "../net/packet/PacketBuilder";
-import { PlayerSession } from "../net/PlayerSession";
+import {
+  AccessType,
+  PacketBuilder,
+  PacketType,
+  Endian,
+} from "../net/packet/PacketBuilder";
 import { Packet } from "../net/packet/Packet";
 import { SocketWithPlayerSession } from "../server";
 import { SkillHandler } from "../skills/SkillHandler";
@@ -18,6 +21,8 @@ export class Player {
 
   private runEnergy: number = 100;
   private specialAttack: number = 100;
+  private isRunning: boolean = false;
+  public animation: number = -1;
 
   private location: Location = new Location(
     DEFAULT_LOCATION.x,
@@ -33,23 +38,17 @@ export class Player {
   }
 
   messageFromServer(message: string) {
-    new OutgoingPacket(this.connection, 253, message.length + 2)
-      .writeByte(message.length + 1)
-      .writeString(message)
-      .writeByte(10)
-      .send();
+    new PacketBuilder(253, PacketType.VARIABLE_BYTE)
+      .writeRSString(message)
+      .send(this.connection);
   }
 
   sendRunEnergy() {
-    new OutgoingPacket(this.connection, 110, 1)
-      .writeByte(this.runEnergy)
-      .send();
+    new PacketBuilder(110).writeByte(this.runEnergy).send(this.connection);
   }
 
   sendSpecialAttack() {
-    new OutgoingPacket(this.connection, 137, 1)
-      .writeByte(this.specialAttack)
-      .send();
+    new PacketBuilder(137).writeByte(this.specialAttack).send(this.connection);
   }
 
   setRunEnergy(energy: number) {
@@ -66,6 +65,11 @@ export class Player {
     this.sendRunEnergy();
     this.sendSpecialAttack();
     this.writeInventory();
+    this.sendRunStatus();
+
+    this.setRunEnergy(this.runEnergy);
+
+    this.skillHandler.sendSkills();
   }
 
   logout() {
@@ -75,32 +79,29 @@ export class Player {
   }
 
   sendMusicTab() {
-    new OutgoingPacket(this.connection, 71, 3)
-      .writeShort(962) // 42500
+    new PacketBuilder(71)
+      .writeShort(962)
       .writeByte(11 + 128)
-      .send();
+      .send(this.connection);
   }
 
   playSong(songId: number) {
-    new OutgoingPacket(this.connection, 121, 4)
+    new PacketBuilder(121)
       .writeShort(songId)
       .writeShort(0)
-      .send();
+      .send(this.connection);
   }
 
   openWorldMap() {
-    new OutgoingPacket(this.connection, 97, 2).writeShort(54000).send();
+    new PacketBuilder(97).writeShort(54000).send(this.connection);
   }
 
   closeInterfaces() {
-    new OutgoingPacket(this.connection, 219, 0).send();
+    new PacketBuilder(219).send(this.connection);
   }
 
   writeInventory() {
-    // The size of the buffer is 8 + 6 * numItems
-    // The size of the varSize is 6 + 6 * numItems
-    const inventoryPacket = new OutgoingPacket(this.connection, 53, 8 + 6 * 28)
-      .writeShort(6 + 6 * 28)
+    const inventoryPacket = new PacketBuilder(53, PacketType.VARIABLE_SHORT)
       .writeInt(3214)
       .writeShort(28);
 
@@ -109,11 +110,14 @@ export class Player {
       inventoryPacket.writeShort(11803);
     }
 
-    inventoryPacket.send();
+    inventoryPacket.send(this.connection);
   }
 
   update() {
-    const packet = new PacketBuilder(81).initializeAccess(AccessType.BIT);
+    const packet = new PacketBuilder(
+      81,
+      PacketType.VARIABLE_SHORT
+    ).initializeAccess(AccessType.BIT);
 
     this.appendPlacement(packet);
 
@@ -128,6 +132,11 @@ export class Player {
       /*       if (this.updateFlags.flagged(Flags.FORCED_CHAT)) {
         mask |= 0x4;
       } */
+
+      if (this.updateFlags.flagged(Flags.ANIMATION) && this.animation !== -1) {
+        console.log("ANIMATION");
+        mask |= 0x8;
+      }
       if (this.updateFlags.flagged(Flags.APPEARANCE)) {
         mask |= 0x10;
       }
@@ -144,9 +153,16 @@ export class Player {
       packet.writeString("Hello, world!");
     }
  */
+    if (this.updateFlags.flagged(Flags.ANIMATION)) {
+      /*       packet.writeShort(this.animation, Endian.Little);
+      packet.writeByte(-0); */
+    }
+
     if (this.updateFlags.flagged(Flags.APPEARANCE)) {
       this.appendAppearance(packet);
     }
+
+    // 866 is dance
 
     packet.send(this.connection);
   }
@@ -190,6 +206,7 @@ export class Player {
       // Some overhead
       .writeByte(0)
 
+      // Unsure :(
       .writeByte(0)
       .writeByte(0)
       .writeByte(0)
@@ -250,10 +267,17 @@ export class Player {
     console.log(absoluteX, absoluteY, plane);
   }
 
-  /*   PacketBuilder out = new PacketBuilder(113);
-		out.put(player.isRunning() ? 1 : 0); */
+  toggleRunState() {
+    this.isRunning = !this.isRunning;
+  }
 
   sendRunStatus() {
-    new OutgoingPacket(this.connection, 113, 1).writeByte(1).send();
+    new PacketBuilder(113, PacketType.FIXED)
+      .writeByte(Number(this.isRunning))
+      .send(this.connection);
+  }
+  performAnimation(animation: number) {
+    this.animation = animation;
+    // this.updateFlags.setFlag(Flags.ANIMATION);
   }
 }

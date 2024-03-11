@@ -39,6 +39,9 @@ export class World {
         const buttonId = payload.readInt();
 
         switch (buttonId) {
+          case 1050:
+            player.toggleRunState();
+            break;
           case 2458:
             player.logout();
             break;
@@ -49,6 +52,9 @@ export class World {
           case 156:
             player.openWorldMap();
 
+            break;
+          case 166:
+            player.performAnimation(866)
             break;
           default:
             const isMusicTrack = musicTracks.find(

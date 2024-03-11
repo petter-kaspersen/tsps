@@ -1,10 +1,20 @@
 import { CustomBuffer } from "../../helper/CustomBuffer";
 import { SocketWithPlayerSession } from "../../server";
-import { Endian } from "./OutgoingPacket";
+
+export const Endian = {
+  Big: 0,
+  Little: 1,
+};
 
 export enum AccessType {
   BIT,
   BYTE,
+}
+
+export enum PacketType {
+  FIXED,
+  VARIABLE_BYTE,
+  VARIABLE_SHORT,
 }
 
 export class PacketBuilder {
@@ -12,6 +22,8 @@ export class PacketBuilder {
   private bitPosition: number;
   private buffer: CustomBuffer = new CustomBuffer(Buffer.alloc(500));
   private byteSizePlaceholderIndex: number;
+  private length: number;
+  private packetType = PacketType.FIXED;
 
   public static BIT_MASK = [
     0, 0x1, 0x3, 0x7, 0xf, 0x1f, 0x3f, 0x7f, 0xff, 0x1ff, 0x3ff, 0x7ff, 0xfff,
@@ -20,8 +32,12 @@ export class PacketBuilder {
     0xfffffff, 0x1fffffff, 0x3fffffff, 0x7fffffff, -1,
   ];
 
-  constructor(opcode: number) {
+  constructor(opcode: number, packetType?: PacketType) {
     this.opcode = opcode;
+
+    if (packetType) {
+      this.packetType = packetType;
+    }
   }
 
   initializeAccess(type: AccessType) {
@@ -97,17 +113,66 @@ export class PacketBuilder {
     return this;
   }
 
+  writeString(value: string) {
+    this.buffer.writeString(value);
+    this.writeByte(10);
+
+    return this;
+  }
+
+  writeInt(value: number) {
+    this.buffer.writeInt(value);
+
+    return this;
+  }
+
+  writeWordA(value: number) {
+    this.buffer.writeWordA(value);
+    return this;
+  }
+
+  writeRSString(value: string) {
+    this.buffer.writeString(value);
+    this.buffer.writeByte(10);
+    return this;
+  }
+
+  getAllocLengthByPacketType() {
+    if (this.packetType === PacketType.FIXED) {
+      return 0;
+    }
+
+    if (this.packetType === PacketType.VARIABLE_BYTE) {
+      return 1;
+    }
+
+    if (this.packetType === PacketType.VARIABLE_SHORT) {
+      return 2;
+    }
+
+    return 0;
+  }
+
   send(connection: SocketWithPlayerSession) {
+    // This whole block is... a mess, let's fix at some point
+    // At least now it's dynamic :)
     const opcode =
       (this.opcode + Number(connection.session?.isaacEncoder.nextInt())) & 0xff;
 
     const length = Math.floor(this.buffer.offset);
-    const prefixBuffer = new CustomBuffer(Buffer.alloc(3));
 
-    prefixBuffer.writeByte(opcode);
-    prefixBuffer.writeShort(length);
+    let allocLength = this.getAllocLengthByPacketType();
+
+    const prefixBuffer = new CustomBuffer(Buffer.alloc(allocLength));
+
+    if (this.packetType === PacketType.VARIABLE_BYTE) {
+      prefixBuffer.writeByte(length);
+    } else if (this.packetType === PacketType.VARIABLE_SHORT) {
+      prefixBuffer.writeShort(length);
+    }
 
     const bufferToCopy = Buffer.alloc(length);
+
     this.buffer.buffer.copy(bufferToCopy);
 
     if (this.byteSizePlaceholderIndex) {
@@ -120,21 +185,12 @@ export class PacketBuilder {
       bufferToCopy[placeholderIndex] = -length;
     }
 
-    const payload = Buffer.from([...prefixBuffer.buffer, ...bufferToCopy]);
+    const payload = Buffer.from([
+      ...Buffer.from([opcode]),
+      ...prefixBuffer.buffer,
+      ...bufferToCopy,
+    ]);
 
     connection.write(payload);
-  }
-
-  writeString(value: string) {
-    this.buffer.writeString(value);
-    this.writeByte(10);
-
-    return this;
-  }
-
-  writeInt(value: number) {
-    this.buffer.writeInt(value);
-
-    return this;
   }
 }
